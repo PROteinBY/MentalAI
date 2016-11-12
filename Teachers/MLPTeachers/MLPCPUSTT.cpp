@@ -40,9 +40,6 @@ namespace MentalAI
 
 		std::vector<float> MLPCPUSTT::getOutputLayerFromInput(std::vector<float> curLayer)
 		{
-			if (curLayer.size() != wMatrix[0].size()) 
-				return std::vector<float>();
-
 			for (uint i = 0; i < bpaLasyY[0].size(); i++)
 				bpaLasyY[0][i] = curLayer[i];
 
@@ -77,9 +74,9 @@ namespace MentalAI
 		{
 			bool flag = true;
 
-			for (uint i = 0; i < out.size(); i++) 
+			for (uint i = 0; i < out.size(); i++)
 			{
-				if (abs(out[i] - refVal[i]) > targetError) 
+				if (abs(out[i] - refVal[i]) > targetError)
 				{
 					flag = false;
 					break;
@@ -198,12 +195,13 @@ namespace MentalAI
 			if (trainingSet.size() != refVal.size()) return -8;
 
 			tMatrix.resize(wMatrix.size());
-			for (uint i = 0; i < wMatrix.size(); i++)
-				tMatrix[i].resize(wMatrix[i][0].size(), 0);
-
 			bpaLastSum.resize(wMatrix.size());
+
 			for (uint i = 0; i < wMatrix.size(); i++)
+			{
+				tMatrix[i].resize(wMatrix[i][0].size(), 0);
 				bpaLastSum[i].resize(wMatrix[i][0].size(), 0);
+			}
 
 			bpaLasyY.resize(wMatrix.size());
 			for (uint i = 0; i < wMatrix.size(); i++)
@@ -320,16 +318,17 @@ namespace MentalAI
 			return currError;
 		}
 
-		int  MLPCPUSTT::tryTrain()
+		int MLPCPUSTT::tryTrain(uint maxIter)
 		{
+			if (!lock) return -1;
+
 			try 
 			{
-				if (!lock) return -1;
-
-				initRandomWM();				
+				//initRandomWM();				
 
 				bool exitFlag = false;
 				uint iter_num = 0;
+				uint glob_iter = 0;
 				float netError = 0;
 
 				while (!exitFlag)
@@ -357,6 +356,11 @@ namespace MentalAI
 					}
 
 					iter_num++;
+					glob_iter++;
+
+					if (maxIter != 0)
+						if (glob_iter >= maxIter) 
+							return 1;
 
 					if (iter_num % check_step == 0)
 					{
@@ -367,7 +371,7 @@ namespace MentalAI
 							return 0;
 
 						if (netError == currError)
-							return 1;
+							return 2;
 
 						iter_num = 0;
 					}

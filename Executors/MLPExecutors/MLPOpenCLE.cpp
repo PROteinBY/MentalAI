@@ -2,7 +2,7 @@
 
 #ifdef _DEBUG
 #include <iostream>
-#endif
+#endif /* _DEBUG */
 
 namespace MentalAI
 {
@@ -84,7 +84,7 @@ namespace MentalAI
 				context = cl::Context(device);
 				commandQueue = cl::CommandQueue(context, device[0]);
 
-				std::string sourceCode("#pragma cl_amd_printf : enable\n\ninline void AtomicAdd(volatile __global float *source, const float operand) \n{\n\tunion \n\t{\n\t\tunsigned int intVal;\n\t\tfloat floatVal;\n\t} newVal;\n\n\tunion \n\t{\n\t\tunsigned int intVal;\n\t\tfloat floatVal;\n\t} prevVal;\n\n\tdo \n\t{\n\t\tprevVal.floatVal = *source;\n\t\tnewVal.floatVal = prevVal.floatVal + operand;\n\t} while (atomic_cmpxchg((volatile __global unsigned int *)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);\n}\n\ninline float sigmoidActivate(float sum)\n{\n\treturn 1.f / (1.f + (float)exp(-sum));\n}\n\n//================================================================================\n\n__kernel void MulWeight(__global float* input, \n\t\t\t\t   __global float* wm, uint wOffset, uint wLocalOffset, \n\t\t\t\t   __global float* out)\n{\n\tuint i = get_global_id(0);\n\tuint g = get_global_id(1);\n\t\n\tfloat mul = input[i] * wm[wOffset + i * wLocalOffset + g];\n\tAtomicAdd(&out[g], mul);\n\t\n\t//printf(\"MUL %d %d: %f OUT: %f (INPUT MY: %f THIS WM: %f\", i, g, mul, out[g], input[i], wm[wOffset + i * wLocalOffset + g]);\n\t\n\tinput[i] = 0;\n}\n\n__kernel void ZeroBuffer(__global float* input)\n{\n\tuint i = get_global_id(0);\t\n\tinput[i] = 0;\n}\n\n__kernel void Activate(__global float* output, \n\t\t\t\t\t\t__global float* tm, uint offset,\n\t\t\t\t\t\tuint activId)\n{\n\tuint i = get_global_id(0);\n\n\toutput[i] -= tm[offset + i];\n\n\tswitch (activId)\n\t{\n\tcase 1:\n\t\toutput[i] = sigmoidActivate(output[i]);\n\t\tbreak;\n\n\tdefault: \n\t\toutput[i] = sigmoidActivate(output[i]);\n\t\tbreak;\n\t}\n\t\n\t//printf(\"ACTIVATION %d: %f\", i, output[i]);\n}");
+				std::string sourceCode("#pragma cl_amd_printf : enable\n\ninline void AtomicAdd(volatile __global float *source, const float operand) \n{\n\tunion \n\t{\n\t\tunsigned int intVal;\n\t\tfloat floatVal;\n\t} newVal;\n\n\tunion \n\t{\n\t\tunsigned int intVal;\n\t\tfloat floatVal;\n\t} prevVal;\n\n\tdo \n\t{\n\t\tprevVal.floatVal = *source;\n\t\tnewVal.floatVal = prevVal.floatVal + operand;\n\t} while (atomic_cmpxchg((volatile __global unsigned int *)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);\n}\n\ninline float sigmoidActivate(float sum)\n{\n\treturn 1.f / (1.f + (float)exp(-sum));\n}\n\n//================================================================================\n\n__kernel void MulWeight(__global float* input, \n\t\t\t\t   __global float* wm, uint wOffset, uint wLocalOffset, \n\t\t\t\t   __global float* out)\n{\n\tuint i = get_global_id(0);\n\tuint g = get_global_id(1);\n\t\n\tfloat mul = input[i] * wm[wOffset + i * wLocalOffset + g];\n\tAtomicAdd(&out[g], mul);\n\t\n\t//printf(\"MUL %d %d: %f OUT: %f (INPUT MY: %f THIS WM: %f\\n\", i, g, mul, out[g], input[i], wm[wOffset + i * wLocalOffset + g]);\n}\n\n__kernel void ZeroBuffer(__global float* input)\n{\n\tuint i = get_global_id(0);\t\n\t//printf(\"=== DELETE %d ===\\n\", i);\n\tinput[i] = 0;\n}\n\n__kernel void Activate(__global float* output, \n\t\t\t\t\t\t__global float* tm, uint offset,\n\t\t\t\t\t\tuint activId)\n{\n\tuint i = get_global_id(0);\n\t\n\t//printf(\"INPUT: %d: %f\\n\", i, output[i]);\n\n\toutput[i] -= tm[offset + i];\n\n\tswitch (activId)\n\t{\n\tcase 1:\n\t\toutput[i] = sigmoidActivate(output[i]);\n\t\tbreak;\n\n\tdefault: \n\t\toutput[i] = sigmoidActivate(output[i]);\n\t\tbreak;\n\t}\n\t\n\t//printf(\"ACTIVATION %d: %f\\n\", i, output[i]);\n}");
 
 				cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
 				program = cl::Program(context, source);
@@ -200,7 +200,7 @@ namespace MentalAI
 
 			//================================================================================
 
-			uint *actLine = new uint[activatonFunc.size()];
+			/*uint *actLine = new uint[activatonFunc.size()];
 
 			for (uint i = 0; i < activatonFunc.size(); i++)
 			{
@@ -209,17 +209,7 @@ namespace MentalAI
 
 			clActBuf = new cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, activatonFunc.size() * sizeof(uint), actLine);
 
-			delete[] actLine;
-			//================================================================================
-
-			float *tmpZeroBuffer = new float[maxLayerSize];
-
-			for (uint i = 0; i < maxLayerSize; i++) tmpZeroBuffer[i] = 0;
-
-			//clInpLayer = new cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, maxLayerSize * sizeof(float), tmpZeroBuffer);
-			clOutLayer = new cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, maxLayerSize * sizeof(float), tmpZeroBuffer);
-
-			delete[] tmpZeroBuffer;
+			delete[] actLine;*/
 
 			return 0;
 		}
@@ -245,6 +235,8 @@ namespace MentalAI
 			for (uint i = 0; i < maxLayerSize; i++) 
 				tmpZeroBuffer[i] = 0;
 
+			clOutLayer = new cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, maxLayerSize * sizeof(float), tmpZeroBuffer);
+
 			for (uint i = 0; i < input.size(); i++) 
 				tmpZeroBuffer[i] = input[i];
 
@@ -253,16 +245,17 @@ namespace MentalAI
 			delete[] tmpZeroBuffer;
 
 			uint tOffset = 0;
+			uint wOffset = 0;
 
 			for (uint i = 0; i < wMatrix->size(); i++)
 			{
 				kernelMult.setArg(0, (i % 2 == 0 ? *clInpLayer : *clOutLayer));
 				kernelMult.setArg(1, *clWmBuf);
-				kernelMult.setArg(2, (i != 0 ? wmOffsetSizes[i - 1] : 0));
+				kernelMult.setArg(2, wOffset);
 				kernelMult.setArg(3, wMatrix->operator[](i)[0].size());
 				kernelMult.setArg(4, (i % 2 == 0 ? *clOutLayer : *clInpLayer));
 
-				commandQueue.enqueueNDRangeKernel(kernelMult, cl::NullRange, cl::NDRange(input.size(), wMatrix->operator[](i)[0].size()), cl::NDRange());
+				commandQueue.enqueueNDRangeKernel(kernelMult, cl::NullRange, cl::NDRange(wMatrix->operator[](i).size(), wMatrix->operator[](i)[0].size()), cl::NDRange());
 
 				kernelZero.setArg(0, (i % 2 == 0 ? *clInpLayer : *clOutLayer));
 
@@ -276,6 +269,7 @@ namespace MentalAI
 				commandQueue.enqueueNDRangeKernel(kernelActivation, cl::NullRange, cl::NDRange(wMatrix->operator[](i)[0].size()), cl::NDRange());
 
 				tOffset += tMatrix->operator[](i).size();
+				wOffset += wmOffsetSizes[i];
 			}
 
 			commandQueue.finish();
@@ -292,7 +286,9 @@ namespace MentalAI
 				outVec[i] = outputBuffer[i];
 
 			delete[] outputBuffer;
+
 			delete clInpLayer;
+			delete clOutLayer;
 
 			return outVec;
 		}

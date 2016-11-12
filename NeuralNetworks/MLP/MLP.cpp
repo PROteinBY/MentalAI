@@ -151,7 +151,7 @@ namespace MentalAI
 		this->pActivators.resize(pActivators.size(), nullptr);
 
 		for (uint i = 0; i < this->pActivators.size(); i++)
-			this->pActivators[i] = pActivators[i];
+			this->pActivators[i] = pActivators[i]->createCopy();
 
 		return true;
 	}

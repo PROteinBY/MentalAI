@@ -31,7 +31,7 @@ namespace MentalAI
 			virtual bool setActivators(std::vector<Activation::IActivation*> pActivators) = 0;
 
 			//Generate random WM and try train
-			virtual int tryTrain() = 0;
+			virtual int tryTrain(unsigned int maxIter) = 0;
 
 			//After train you can get new WM
 			virtual std::vector<std::vector<std::vector<float>>> getNewWeightMatrix() = 0;

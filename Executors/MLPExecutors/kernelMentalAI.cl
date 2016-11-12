@@ -38,14 +38,13 @@ __kernel void MulWeight(__global float* input,
 	float mul = input[i] * wm[wOffset + i * wLocalOffset + g];
 	AtomicAdd(&out[g], mul);
 
-	//printf("MUL %d %d: %f OUT: %f (INPUT MY: %f THIS WM: %f", i, g, mul, out[g], input[i], wm[wOffset + i * wLocalOffset + g]);
-
-	input[i] = 0;
+	//printf("MUL %d %d: %f OUT: %f (INPUT MY: %f THIS WM: %f\n", i, g, mul, out[g], input[i], wm[wOffset + i * wLocalOffset + g]);
 }
 
 __kernel void ZeroBuffer(__global float* input)
 {
 	uint i = get_global_id(0);
+	//printf("=== DELETE %d ===\n", i);
 	input[i] = 0;
 }
 
@@ -54,6 +53,8 @@ __kernel void Activate(__global float* output,
 	uint activId)
 {
 	uint i = get_global_id(0);
+
+	//printf("INPUT: %d: %f\n", i, output[i]);
 
 	output[i] -= tm[offset + i];
 
@@ -68,5 +69,5 @@ __kernel void Activate(__global float* output,
 		break;
 	}
 
-	//printf("ACTIVATION %d: %f", i, output[i]);
+	//printf("ACTIVATION %d: %f\n", i, output[i]);
 }

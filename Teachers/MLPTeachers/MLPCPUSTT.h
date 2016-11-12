@@ -52,7 +52,7 @@ namespace MentalAI
 			void quitTeacher();
 			bool setWeightMatrix(std::vector<std::vector<std::vector<float>>> wMatrix);
 			bool setActivators(std::vector<Activation::IActivation*> pActivators);
-			int tryTrain();
+			int tryTrain(uint maxIter = 0);
 			std::vector<std::vector<std::vector<float>>> getNewWeightMatrix();
 			std::vector<std::vector<float>> getNewTMatrix();
 			bool setTrainStep(float a);
