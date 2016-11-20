@@ -1,6 +1,8 @@
 #include "MLPCPUSTT.h"
 #include <time.h>
 
+#include <iostream>
+
 namespace MentalAI
 {
 	namespace Teacher
@@ -52,7 +54,7 @@ namespace MentalAI
 					float wSum = 0;
 
 					for (uint z = 0; z < curLayer.size(); z++)
-						wSum += wMatrix.operator[](i)[z][g] * curLayer[z];
+						wSum += wMatrix[i][z][g] * curLayer[z];
 
 					wSum -= tMatrix[i][g];
 					newLayer[g] = pActivators[i]->activate(wSum);
@@ -324,7 +326,7 @@ namespace MentalAI
 
 			try 
 			{
-				//initRandomWM();				
+				//initRandomWM();
 
 				bool exitFlag = false;
 				uint iter_num = 0;
@@ -359,7 +361,7 @@ namespace MentalAI
 					glob_iter++;
 
 					if (maxIter != 0)
-						if (glob_iter >= maxIter) 
+						if (glob_iter >= maxIter)
 							return 1;
 
 					if (iter_num % check_step == 0)

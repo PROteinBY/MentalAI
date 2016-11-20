@@ -24,7 +24,7 @@ namespace MentalAI
 			std::vector<cl::Platform> platforms;			/* list of platforms */
 			cl::CommandQueue commandQueue;                  /* CL command queue */
 			cl::Program program;                            /* CL program  */
-			cl::Kernel kernelMult;                          /* CL kernel */
+			//cl::Kernel kernelMult;                          /* CL kernel */
 			cl::Kernel kernelDevActivation;					/* CL kernel */
 			cl::Kernel kernelActivation;                    /* CL kernel */
 			cl::Kernel kernelZero;							/* CL kernel */
@@ -34,6 +34,7 @@ namespace MentalAI
 			cl::Kernel kernelFullErr;						/* CL kernel */
 			cl::Kernel kernelChangeW;						/* CL kernel */
 			cl::Kernel kernelChangeT;						/* CL kernel */
+			cl::Kernel kernelSaveLasyY;						/* CL kernel */
 			
 			cl::Buffer *clWmBuf;							/* Buffer for weight matrix */
 			cl::Buffer *clErrBuf;							/* Buffer for errors */

@@ -62,7 +62,7 @@ inline float UseDevActivator(uint activId, float sum)
 
 //================================================================================
 
-__kernel void MulWeight(__global float* input, uint inputOffset,
+/*__kernel void MulWeight(__global float* input, uint inputOffset,
 						__global float* wm, uint wOffset, uint wLocalOffset,
 						__global float* out, __global float* lastYBuf, uint lastOffset)
 {
@@ -73,7 +73,7 @@ __kernel void MulWeight(__global float* input, uint inputOffset,
 
 	float mul = input[inputOffset + i] * wm[wOffset + i * wLocalOffset + g];
 	AtomicAdd(&out[g], mul);
-}
+}*/
 
 __kernel void ZeroBuffer(__global float* input)
 {
@@ -81,12 +81,24 @@ __kernel void ZeroBuffer(__global float* input)
 	input[i] = 0;
 }
 
-__kernel void Activate(__global float* output,
+__kernel void SaveLastY(__global float* input, uint inputOffset, 
+						__global float* lastYBuf, uint lastOffset)
+{
+	uint i = get_global_id(0);
+	lastYBuf[lastOffset + i] = input[inputOffset + i];
+}
+
+__kernel void Activate(__global float* input, uint inputOffset, uint inputSize,
+						__global float* wm, uint wOffset, uint wLocalOffset,
+						__global float* output,
 						__global float* tm, uint offset,
 						uint activId, __global float* lastSumBuf)
 {
 	uint i = get_global_id(0);
 
+	for (int g = 0; g < inputSize; g++)
+		output[i] += input[inputOffset + g] * wm[wOffset + g * wLocalOffset + i];
+	
 	output[i] -= tm[offset + i];
 	lastSumBuf[offset + i] = output[i];
 	
@@ -131,9 +143,11 @@ __kernel void ChangeWeight(__global float* wm, uint wOffset, uint wLocalOffset,
 	uint i = get_global_id(0);
 	uint g = get_global_id(1);
 
-	float addVal = -1 * (a * errs[offset + g] * UseDevActivator(activId, lastSum[offset + g]) * lastY[lastYOffset + i]);
+	//float addVal = -1 * (a * errs[offset + g] * UseDevActivator(activId, lastSum[offset + g]) * lastY[lastYOffset + i]);
 
-	AtomicAdd(&wm[wOffset + i * wLocalOffset + g], addVal);
+	wm[wOffset + i * wLocalOffset + g] -= a * errs[offset + g] * UseDevActivator(activId, lastSum[offset + g]) * lastY[lastYOffset + i];
+
+	//AtomicAdd(&wm[wOffset + i * wLocalOffset + g], addVal);
 }
 
 __kernel void ChangeT(__global float *tm, uint tOffset, __global float* errs, uint activId, __global float* lastSum, float a)

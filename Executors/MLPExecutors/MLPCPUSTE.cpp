@@ -21,8 +21,8 @@ namespace MentalAI
 		}
 
 		int MLPCPUSTE::prepareExecutor(std::vector<std::vector<std::vector<float>>> &wMatrix,
-														std::vector<std::vector<float>> &tMatrix,
-														std::vector<Activation::IActivation*> &activatonFunc)
+										std::vector<std::vector<float>> &tMatrix,
+										std::vector<Activation::IActivation*> &activatonFunc)
 		{
 			this->wMatrix = &wMatrix;
 			this->tMatrix = &tMatrix;

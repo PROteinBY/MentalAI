@@ -36,14 +36,14 @@ namespace MentalAI
 				context = cl::Context(device);
 				commandQueue = cl::CommandQueue(context, device[0]);
 
-				std::string sourceCode("#pragma cl_amd_printf : enable\n\ninline void AtomicAdd(volatile __global float *source, const float operand)\n{\n\tunion\n\t{\n\t\tunsigned int intVal;\n\t\tfloat floatVal;\n\t} newVal;\n\n\tunion\n\t{\n\t\tunsigned int intVal;\n\t\tfloat floatVal;\n\t} prevVal;\n\n\tdo\n\t{\n\t\tprevVal.floatVal = *source;\n\t\tnewVal.floatVal = prevVal.floatVal + operand;\n\t} while (atomic_cmpxchg((volatile __global unsigned int *)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);\n}\n\ninline float sigmoidActivate(float sum)\n{\n\treturn 1.f / (1.f + (float)exp(-sum));\n}\n\ninline float devSigmoidActivate(float sum)\n{\n\tfloat y = sigmoidActivate(sum);\n\treturn y * (1 - y);\n}\n\ninline float UseActivator(uint activId, float sum)\n{\n\tswitch (activId)\n\t{\n\tcase 1:\n\t\treturn sigmoidActivate(sum);\n\t\tbreak;\n\n\tdefault:\n\t\treturn 0;\n\t\tbreak;\n\t}\n}\n\ninline float UseDevActivator(uint activId, float sum)\n{\n\tswitch (activId)\n\t{\n\tcase 1:\n\t\treturn devSigmoidActivate(sum);\n\t\tbreak;\n\n\tdefault:\n\t\treturn 0;\n\t\tbreak;\n\t}\n}\n\n//================================================================================\n\n__kernel void MulWeight(__global float* input, uint inputOffset,\n\t\t\t\t\t\t__global float* wm, uint wOffset, uint wLocalOffset,\n\t\t\t\t\t\t__global float* out, __global float* lastYBuf, uint lastOffset)\n{\n\tuint i = get_global_id(0);\n\tuint g = get_global_id(1);\n\n\tlastYBuf[lastOffset + i] = input[inputOffset + i];\n\n\tfloat mul = input[inputOffset + i] * wm[wOffset + i * wLocalOffset + g];\n\tAtomicAdd(&out[g], mul);\n}\n\n__kernel void ZeroBuffer(__global float* input)\n{\n\tuint i = get_global_id(0);\n\tinput[i] = 0;\n}\n\n__kernel void Activate(__global float* output,\n\t\t\t\t\t\t__global float* tm, uint offset,\n\t\t\t\t\t\tuint activId, __global float* lastSumBuf)\n{\n\tuint i = get_global_id(0);\n\n\toutput[i] -= tm[offset + i];\n\tlastSumBuf[offset + i] = output[i];\n\t\n\toutput[i] = UseActivator(activId, output[i]);\n}\n\n//================================================================================\n\n__kernel void Compare(__global float* output, __global float* refs, uint refOffset, \n\t\t\t\t\t\t__global uint* chgFlag, float targetError)\n{\n\tuint i = get_global_id(0);\n\n\tif (fabs((float)(output[i] - refs[refOffset + i])) > targetError)\n\t\t*chgFlag = 0;\n}\n\n__kernel void OutLayerError(__global float* out, __global float* ref, uint refOffset,\n\t\t\t\t\t\t\t__global float* errs, uint offset)\n{\n\tuint i = get_global_id(0);\n\terrs[offset + i] = out[i] - ref[refOffset + i];\n}\n\n__kernel void HiddenLayerError(__global float* errs, uint offset, uint nextOffset,\n\t\t\t\t\t\t\t\t__global float* wm, uint wOffset, uint wLocalOffset,\n\t\t\t\t\t\t\t\t__global float* lastSum, uint activId)\n{\n\tuint i = get_global_id(0);\n\tuint g = get_global_id(1);\n\n\tfloat addVal = errs[nextOffset + g] * UseDevActivator(activId, lastSum[nextOffset + g]) * wm[wOffset + i * wLocalOffset + g];\n\n\tAtomicAdd(&errs[offset + i], addVal);\n}\n\n__kernel void ChangeWeight(__global float* wm, uint wOffset, uint wLocalOffset,\n\t\t\t\t\t\t\t__global float* errs, uint offset, __global float* lastSum,\n\t\t\t\t\t\t\t__global float* lastY, uint lastYOffset,\n\t\t\t\t\t\t\tuint activId, float a)\n{\n\tuint i = get_global_id(0);\n\tuint g = get_global_id(1);\n\n\tfloat addVal = -1 * (a * errs[offset + g] * UseDevActivator(activId, lastSum[offset + g]) * lastY[lastYOffset + i]);\n\n\tAtomicAdd(&wm[wOffset + i * wLocalOffset + g], addVal);\n}\n\n__kernel void ChangeT(__global float *tm, uint tOffset, __global float* errs, uint activId, __global float* lastSum, float a)\n{\n\tuint i = get_global_id(0);\n\n\ttm[tOffset + i] += a * errs[tOffset + i] * UseDevActivator(activId, lastSum[tOffset + i]);\n}");
+				std::string sourceCode("#pragma cl_amd_printf : enable\n\ninline void AtomicAdd(volatile __global float *source, const float operand)\n{\n\tunion\n\t{\n\t\tunsigned int intVal;\n\t\tfloat floatVal;\n\t} newVal;\n\n\tunion\n\t{\n\t\tunsigned int intVal;\n\t\tfloat floatVal;\n\t} prevVal;\n\n\tdo\n\t{\n\t\tprevVal.floatVal = *source;\n\t\tnewVal.floatVal = prevVal.floatVal + operand;\n\t} while (atomic_cmpxchg((volatile __global unsigned int *)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);\n}\n\ninline float sigmoidActivate(float sum)\n{\n\treturn 1.f / (1.f + (float)exp(-sum));\n}\n\ninline float devSigmoidActivate(float sum)\n{\n\tfloat y = sigmoidActivate(sum);\n\treturn y * (1 - y);\n}\n\ninline float UseActivator(uint activId, float sum)\n{\n\tswitch (activId)\n\t{\n\tcase 1:\n\t\treturn sigmoidActivate(sum);\n\t\tbreak;\n\n\tdefault:\n\t\treturn 0;\n\t\tbreak;\n\t}\n}\n\ninline float UseDevActivator(uint activId, float sum)\n{\n\tswitch (activId)\n\t{\n\tcase 1:\n\t\treturn devSigmoidActivate(sum);\n\t\tbreak;\n\n\tdefault:\n\t\treturn 0;\n\t\tbreak;\n\t}\n}\n\n//================================================================================\n\n/*__kernel void MulWeight(__global float* input, uint inputOffset,\n\t\t\t\t\t\t__global float* wm, uint wOffset, uint wLocalOffset,\n\t\t\t\t\t\t__global float* out, __global float* lastYBuf, uint lastOffset)\n{\n\tuint i = get_global_id(0);\n\tuint g = get_global_id(1);\n\n\tlastYBuf[lastOffset + i] = input[inputOffset + i];\n\n\tfloat mul = input[inputOffset + i] * wm[wOffset + i * wLocalOffset + g];\n\tAtomicAdd(&out[g], mul);\n}*/\n\n__kernel void ZeroBuffer(__global float* input)\n{\n\tuint i = get_global_id(0);\n\tinput[i] = 0;\n}\n\n__kernel void SaveLastY(__global float* input, uint inputOffset, \n\t\t\t\t\t\t__global float* lastYBuf, uint lastOffset)\n{\n\tuint i = get_global_id(0);\n\tlastYBuf[lastOffset + i] = input[inputOffset + i];\n}\n\n__kernel void Activate(__global float* input, uint inputOffset, uint inputSize,\n\t\t\t\t\t\t__global float* wm, uint wOffset, uint wLocalOffset,\n\t\t\t\t\t\t__global float* output,\n\t\t\t\t\t\t__global float* tm, uint offset,\n\t\t\t\t\t\tuint activId, __global float* lastSumBuf)\n{\n\tuint i = get_global_id(0);\n\n\tfor (int g = 0; g < inputSize; g++)\n\t\toutput[i] += input[inputOffset + g] * wm[wOffset + g * wLocalOffset + i];\n\t\n\toutput[i] -= tm[offset + i];\n\tlastSumBuf[offset + i] = output[i];\n\t\n\toutput[i] = UseActivator(activId, output[i]);\n}\n\n//================================================================================\n\n__kernel void Compare(__global float* output, __global float* refs, uint refOffset, \n\t\t\t\t\t\t__global uint* chgFlag, float targetError)\n{\n\tuint i = get_global_id(0);\n\n\tif (fabs((float)(output[i] - refs[refOffset + i])) > targetError)\n\t\t*chgFlag = 0;\n}\n\n__kernel void OutLayerError(__global float* out, __global float* ref, uint refOffset,\n\t\t\t\t\t\t\t__global float* errs, uint offset)\n{\n\tuint i = get_global_id(0);\n\terrs[offset + i] = out[i] - ref[refOffset + i];\n}\n\n__kernel void HiddenLayerError(__global float* errs, uint offset, uint nextOffset,\n\t\t\t\t\t\t\t\t__global float* wm, uint wOffset, uint wLocalOffset,\n\t\t\t\t\t\t\t\t__global float* lastSum, uint activId)\n{\n\tuint i = get_global_id(0);\n\tuint g = get_global_id(1);\n\n\tfloat addVal = errs[nextOffset + g] * UseDevActivator(activId, lastSum[nextOffset + g]) * wm[wOffset + i * wLocalOffset + g];\n\n\tAtomicAdd(&errs[offset + i], addVal);\n}\n\n__kernel void ChangeWeight(__global float* wm, uint wOffset, uint wLocalOffset,\n\t\t\t\t\t\t\t__global float* errs, uint offset, __global float* lastSum,\n\t\t\t\t\t\t\t__global float* lastY, uint lastYOffset,\n\t\t\t\t\t\t\tuint activId, float a)\n{\n\tuint i = get_global_id(0);\n\tuint g = get_global_id(1);\n\n\t//float addVal = -1 * (a * errs[offset + g] * UseDevActivator(activId, lastSum[offset + g]) * lastY[lastYOffset + i]);\n\n\twm[wOffset + i * wLocalOffset + g] -= a * errs[offset + g] * UseDevActivator(activId, lastSum[offset + g]) * lastY[lastYOffset + i];\n\n\t//AtomicAdd(&wm[wOffset + i * wLocalOffset + g], addVal);\n}\n\n__kernel void ChangeT(__global float *tm, uint tOffset, __global float* errs, uint activId, __global float* lastSum, float a)\n{\n\tuint i = get_global_id(0);\n\n\ttm[tOffset + i] += a * errs[tOffset + i] * UseDevActivator(activId, lastSum[tOffset + i]);\n}");
 
 				cl::Program::Sources source(1, std::make_pair(sourceCode.c_str(), sourceCode.length() + 1));
 				program = cl::Program(context, source);
 				program.build(device);
 
 				//Подставить в будущем норм функции
-				kernelMult = cl::Kernel(program, "MulWeight");
+				//kernelMult = cl::Kernel(program, "MulWeight");
 				kernelActivation = cl::Kernel(program, "Activate");
 				kernelZero = cl::Kernel(program, "ZeroBuffer");
 				kernelCompare = cl::Kernel(program, "Compare");
@@ -52,6 +52,9 @@ namespace MentalAI
 				//kernelFullErr = cl::Kernel(program, "HiddenLayerError");
 				kernelChangeW = cl::Kernel(program, "ChangeWeight");
 				kernelChangeT = cl::Kernel(program, "ChangeT");
+				kernelSaveLasyY = cl::Kernel(program, "SaveLastY");
+
+				check_step = 1000;
 
 				return true;
 			}
@@ -86,27 +89,43 @@ namespace MentalAI
 			clOutLayer = new cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, maxLayerSize * sizeof(float), tmpZeroBuffer);
 			clInpLayer = new cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, maxLayerSize * sizeof(float), tmpZeroBuffer);
 
+			delete[] tmpZeroBuffer;
+
 			for (uint i = 0; i < wMatrix.size(); i++)
 			{
 				if (i == 0)
 				{
-					kernelMult.setArg(0, *clTrainSetBuf);
-					kernelMult.setArg(1, index * trainingSet[index].size());
+					kernelSaveLasyY.setArg(0, *clTrainSetBuf);
+					kernelSaveLasyY.setArg(1, index * trainingSet[index].size());					
+
+					kernelActivation.setArg(0, *clTrainSetBuf);
+					kernelActivation.setArg(1, index * trainingSet[index].size());
 				}
 				else
 				{
-					kernelMult.setArg(0, (i % 2 == 0 ? *clInpLayer : *clOutLayer));
-					kernelMult.setArg(1, 0);
+					kernelSaveLasyY.setArg(0, (i % 2 == 0 ? *clInpLayer : *clOutLayer));
+					kernelSaveLasyY.setArg(1, 0);
+
+					kernelActivation.setArg(0, (i % 2 == 0 ? *clInpLayer : *clOutLayer));
+					kernelActivation.setArg(1, 0);
 				}
 
-				kernelMult.setArg(2, *clWmBuf);
-				kernelMult.setArg(3, wmOffsetSizes[i]);
-				kernelMult.setArg(4, wMatrix[i][0].size());
-				kernelMult.setArg(5, (i % 2 == 0 ? *clOutLayer : *clInpLayer));
-				kernelMult.setArg(6, *clLasyYBuf);
-				kernelMult.setArg(7, lastYOffsetSizes[i]);
+				kernelSaveLasyY.setArg(2, *clLasyYBuf);
+				kernelSaveLasyY.setArg(3, lastYOffsetSizes[i]);
 
-				commandQueue.enqueueNDRangeKernel(kernelMult, cl::NullRange, cl::NDRange(wMatrix[i].size(), wMatrix[i][0].size()), cl::NDRange());
+				commandQueue.enqueueNDRangeKernel(kernelSaveLasyY, cl::NullRange, cl::NDRange(wMatrix[i].size()), cl::NDRange());
+
+				kernelActivation.setArg(2, wMatrix[i].size());
+				kernelActivation.setArg(3, *clWmBuf);
+				kernelActivation.setArg(4, wmOffsetSizes[i]);
+				kernelActivation.setArg(5, wMatrix[i][0].size());
+				kernelActivation.setArg(6, (i % 2 == 0 ? *clOutLayer : *clInpLayer));
+				kernelActivation.setArg(7, *clTmBuf);
+				kernelActivation.setArg(8, tmOffsetSizes[i]);
+				kernelActivation.setArg(9, pActivators[i]->getKernelActivatorId());
+				kernelActivation.setArg(10, *clLastSumBuf);
+
+				commandQueue.enqueueNDRangeKernel(kernelActivation, cl::NullRange, cl::NDRange(wMatrix[i][0].size()), cl::NDRange());
 
 				if (i != 0)
 				{
@@ -114,32 +133,19 @@ namespace MentalAI
 					commandQueue.enqueueNDRangeKernel(kernelZero, cl::NullRange, cl::NDRange(wMatrix[i].size()), cl::NDRange());
 				}
 
-				kernelActivation.setArg(0, (i % 2 == 0 ? *clOutLayer : *clInpLayer));
-				kernelActivation.setArg(1, *clTmBuf);
-				kernelActivation.setArg(2, tmOffsetSizes[i]);
-				kernelActivation.setArg(3, pActivators[i]->getKernelActivatorId());
-				kernelActivation.setArg(4, *clLastSumBuf);
-
-				commandQueue.enqueueNDRangeKernel(kernelActivation, cl::NullRange, cl::NDRange(wMatrix[i][0].size()), cl::NDRange());
-
-				commandQueue.finish();
-
-				if (wMatrix.size() % 2 == 0)
-				{
-					delete clOutLayer;
-					return clInpLayer;
-				}
-				else
-				{
-					delete clInpLayer;
-					return clOutLayer;
-				}
+				//commandQueue.finish();
 			}
 
-			delete[] tmpZeroBuffer;
-
-			uint tOffset = 0;
-			uint wOffset = 0;
+			if (wMatrix.size() % 2 == 0)
+			{
+				delete clOutLayer;
+				return clInpLayer;
+			}
+			else
+			{
+				delete clInpLayer;
+				return clOutLayer;
+			}
 		}
 
 		bool MLPOpenCLT::Compare(cl::Buffer *out, uint index)
@@ -182,31 +188,31 @@ namespace MentalAI
 		{
 			kernelZero.setArg(0, *clErrBuf);
 			commandQueue.enqueueNDRangeKernel(kernelZero, cl::NullRange, cl::NDRange(tmFullSize), cl::NDRange());
-			commandQueue.finish();
+			//commandQueue.finish();
 
 			kernelErrOutput.setArg(0, *out);
-			kernelErrOutput.setArg(1, *clRefValueBuf);
+			//kernelErrOutput.setArg(1, *clRefValueBuf);
 			kernelErrOutput.setArg(2, index * refVal[index].size());
-			kernelErrOutput.setArg(3, *clErrBuf);
+			//kernelErrOutput.setArg(3, *clErrBuf);
 			kernelErrOutput.setArg(4, tmOffsetSizes[tmOffsetSizes.size() - 1]);
 
 			commandQueue.enqueueNDRangeKernel(kernelErrOutput, cl::NullRange, cl::NDRange(refVal[index].size()), cl::NDRange());
-			commandQueue.finish();
+			//commandQueue.finish();
 
 			if (tMatrix.size() == 1) return;
 
 			for (uint i = tMatrix.size() - 2;; --i)
 			{
-				kernelErrHidden.setArg(0, *clErrBuf);
+				//kernelErrHidden.setArg(0, *clErrBuf);
 				kernelErrHidden.setArg(1, tmOffsetSizes[i]);
 				kernelErrHidden.setArg(2, tmOffsetSizes[i + 1]);
-				kernelErrHidden.setArg(3, *clWmBuf);
-				kernelErrHidden.setArg(4, wmOffsetSizes[i]);
-				kernelErrHidden.setArg(5, wMatrix[i][0].size());
-				kernelErrHidden.setArg(6, *clLastSumBuf);
+				//kernelErrHidden.setArg(3, *clWmBuf);
+				kernelErrHidden.setArg(4, wmOffsetSizes[i + 1]);
+				kernelErrHidden.setArg(5, wMatrix[i + 1][0].size());
+				//kernelErrHidden.setArg(6, *clLastSumBuf);
 				kernelErrHidden.setArg(7, pActivators[i]->getKernelActivatorId());
 
-				commandQueue.enqueueNDRangeKernel(kernelErrHidden, cl::NullRange, cl::NDRange(wMatrix[i].size(), wMatrix[i][0].size()), cl::NDRange());
+				commandQueue.enqueueNDRangeKernel(kernelErrHidden, cl::NullRange, cl::NDRange(wMatrix[i + 1].size(), wMatrix[i + 1][0].size()), cl::NDRange());
 
 				if (i == 0) return;
 			}
@@ -391,7 +397,7 @@ namespace MentalAI
 		{
 			float *tmLine = new float[tmFullSize];
 
-			commandQueue.enqueueReadBuffer(*clWmBuf, CL_TRUE, 0, tmFullSize * sizeof(float), tmLine);
+			commandQueue.enqueueReadBuffer(*clTmBuf, CL_TRUE, 0, tmFullSize * sizeof(float), tmLine);
 
 			uint index = 0;
 
@@ -513,17 +519,6 @@ namespace MentalAI
 
 			//================================================================================
 
-			/*uint *actLine = new uint[pActivators.size()];
-
-			for (uint i = 0; i < pActivators.size(); i++)
-				actLine[i] = pActivators[i]->getKernelActivatorId();
-
-			clActBuf = new cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, pActivators.size() * sizeof(uint), actLine);
-
-			delete[] actLine;*/
-
-			//================================================================================
-
 			full_size = trainingSet.size() * trainingSet[0].size();
 
 			line = new float[full_size];
@@ -552,6 +547,30 @@ namespace MentalAI
 
 			//================================================================================
 
+			kernelChangeW.setArg(0, *clWmBuf);
+			kernelChangeW.setArg(3, *clErrBuf);
+			kernelChangeW.setArg(5, *clLastSumBuf);
+			kernelChangeW.setArg(6, *clLasyYBuf);
+			kernelChangeW.setArg(9, a);
+
+			kernelChangeT.setArg(0, *clTmBuf);
+			kernelChangeT.setArg(2, *clErrBuf);
+			kernelChangeT.setArg(4, *clLastSumBuf);
+			kernelChangeT.setArg(5, a);
+
+			kernelErrOutput.setArg(1, *clRefValueBuf);
+			kernelErrOutput.setArg(3, *clErrBuf);
+
+			kernelErrHidden.setArg(0, *clErrBuf);
+			kernelErrHidden.setArg(3, *clWmBuf);
+			kernelErrHidden.setArg(6, *clLastSumBuf);
+
+			//kernelMult.setArg(2, *clWmBuf);
+			//kernelMult.setArg(6, *clLasyYBuf);
+
+			//kernelActivation.setArg(1, *clTmBuf);
+			//kernelActivation.setArg(4, *clLastSumBuf);
+
 			lock = true;
 
 			return 0;
@@ -574,42 +593,40 @@ namespace MentalAI
 				uint glob_iter = 0;
 				float netError = 0;
 
+				bool kek = false;
+
 				while (!exitFlag)
 				{
 					for (uint i = 0; i < trainingSet.size(); i++)
 					{
 						cl::Buffer* out = getOutputLayerFromInput(i);
 
-						if (Compare(out, i))
-						{
-							delete out;
-							continue;
-						}
-
 						getLayersError(out, i);
+
+						delete out;
 
 						for (uint g = wMatrix.size() - 1;; g--)
 						{
-							kernelChangeW.setArg(0, *clWmBuf);
+							//kernelChangeW.setArg(0, *clWmBuf);
 							kernelChangeW.setArg(1, wmOffsetSizes[g]);
 							kernelChangeW.setArg(2, wMatrix[g][0].size());
-							kernelChangeW.setArg(3, *clErrBuf);
+							//kernelChangeW.setArg(3, *clErrBuf);
 							kernelChangeW.setArg(4, tmOffsetSizes[g]);
-							kernelChangeW.setArg(5, *clLastSumBuf);
-							kernelChangeW.setArg(6, *clLasyYBuf);
+							//kernelChangeW.setArg(5, *clLastSumBuf);
+							//kernelChangeW.setArg(6, *clLasyYBuf);
 							kernelChangeW.setArg(7, lastYOffsetSizes[g]);
 							kernelChangeW.setArg(8, pActivators[g]->getKernelActivatorId());
-							kernelChangeW.setArg(9, a);
+							//kernelChangeW.setArg(9, a);
 
 							commandQueue.enqueueNDRangeKernel(kernelChangeW, cl::NullRange, cl::NDRange(wMatrix[g].size(), wMatrix[g][0].size()), cl::NDRange());
-							commandQueue.finish();
+							//commandQueue.finish();
 
-							kernelChangeT.setArg(0, *clTmBuf);
+							//kernelChangeT.setArg(0, *clTmBuf);
 							kernelChangeT.setArg(1, tmOffsetSizes[g]);
-							kernelChangeT.setArg(2, *clErrBuf);
+							//kernelChangeT.setArg(2, *clErrBuf);
 							kernelChangeT.setArg(3, pActivators[g]->getKernelActivatorId());
-							kernelChangeT.setArg(4, *clLastSumBuf);
-							kernelChangeT.setArg(5, a);
+							//kernelChangeT.setArg(4, *clLastSumBuf);
+							//kernelChangeT.setArg(5, a);
 
 							commandQueue.enqueueNDRangeKernel(kernelChangeT, cl::NullRange, cl::NDRange(wMatrix[g][0].size()), cl::NDRange());
 							commandQueue.finish();
@@ -623,21 +640,30 @@ namespace MentalAI
 
 					if (maxIter != 0)
 						if (glob_iter >= maxIter)
+						{
+							commandQueue.finish();
 							return 1;
+						}
 
-					if (iter_num % check_step == 0)
+					/*if (iter_num % check_step == 0)
 					{
 						currError = netError;
 						netError = calculateError();
 
 						if (netError <= targetError)
+						{
+							commandQueue.finish();
 							return 0;
+						}
 
 						if (netError == currError)
+						{
+							commandQueue.finish();
 							return 2;
+						}
 
 						iter_num = 0;
-					}
+					}*/
 				}
 			}
 			catch (...)
@@ -645,6 +671,7 @@ namespace MentalAI
 				return -2;
 			}
 		}
+
 
 	}
 }
